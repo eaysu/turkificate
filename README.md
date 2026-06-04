@@ -61,30 +61,34 @@ List available concepts with `turkificate.available_features()`.
 
 | Concept | Description | Example |
 |---|---|---|
+| `emails` | e-mail addresses | `info@firma.com` → info et firma nokta com |
+| `urls` | URLs | `https://firma.com/detay` → firma nokta com bölü detay |
 | `numbers` | integer / decimal / signed | `3,5` → üç virgül beş |
 | `dates` | DD.MM.YYYY | `15.03.2024` → on beş Mart iki bin yirmi dört |
 | `times` | HH:MM(:SS) | `14:30` → on dört otuz |
 | `percent` | percent sign | `%50` → yüzde elli |
 | `currency` | currencies | `100 TL` → yüz lira |
-| `ordinals` | ordinal numbers | `5'inci` → beşinci |
-| `units` | units of measure | `42 km` → kırk iki kilometre |
+| `ordinals` | ordinal numbers | `5'inci` → beşinci, `3. kat` → üçüncü kat |
+| `units` | units of measure | `42 km` → kırk iki kilometre, `-3 °C` → eksi üç derece |
 | `abbreviations` | lexical abbreviations | `Dr.` → doktor |
-| `symbols` | single-character symbols | `&` → ve |
+| `symbols` | single-character symbols | `&` → ve, `×` → çarpı, `÷` → bölü |
 | `whitespace` | whitespace cleanup | (always the final step) |
 
 ## Per-concept options
 
 ```python
 tn = TurkishNormalizer(options={
-    "times": {"prefix_hour": True},        # 09:05 → "saat dokuz beş"
-    "ordinals": {"period_ordinals": True}, # "3. kat" → "üçüncü kat"
+    "times":   {"prefix_hour":     True},  # 09:05 → "saat dokuz beş"
+    "ordinals": {"period_ordinals": False}, # disable "3. kat" → "üçüncü kat" (on by default)
 })
 ```
 
 ## Per-concept helpers
 
 ```python
-turkificate.normalize_numbers("3 elma")     # "üç elma"
+turkificate.normalize_numbers("3 elma")               # "üç elma"
+turkificate.normalize_emails("info@firma.com")         # "info et firma nokta com"
+turkificate.normalize_urls("https://firma.com/detay")  # "firma nokta com bölü detay"
 turkificate.normalize_dates(...)
 turkificate.normalize_currency(...)
 # normalize_times, normalize_percent, normalize_ordinals,
@@ -134,7 +138,7 @@ instance is reused across thousands of calls.
 
 ## Known limits (roadmap)
 
-- The period ordinal form (`3.`) is disabled by default because it clashes with a sentence-final period; enable it with `period_ordinals=True`.
+- The period ordinal form (`3. kat` → "üçüncü kat") is enabled by default. It requires whitespace + a non-whitespace character after the dot, so sentence-final periods are safe. Disable with `period_ordinals=False`.
 - The number engine is one-way; the reverse direction (words → digits) is not yet implemented.
 - Context-sensitive suffixes (`5'te` → "beşte") are not handled yet.
 - Roman numerals, phone numbers and fractions (`3/4`) can be added.
