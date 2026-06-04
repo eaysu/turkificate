@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turkificate"
+version = "0.1.0"
+description = "A Turkish text normalization library (numbers, dates, times, abbreviations, currency, and more)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Enes" }]
+keywords = ["turkish", "nlp", "text-normalization", "tts", "normalization"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Natural Language :: Turkish",
+    "Topic :: Text Processing :: Linguistic",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = []   # pure standard library — no external dependencies
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/<kullanici-adi>/turkificate"
+Repository = "https://github.com/<kullanici-adi>/turkificate"
+Issues = "https://github.com/<kullanici-adi>/turkificate/issues"
+
+[tool.setuptools]
+packages = ["turkificate"]
+
+[tool.setuptools.package-dir]
+turkificate = "."
