@@ -55,6 +55,11 @@ class TestNormalizers:
     def test_abbreviations(self):
         assert turkificate.normalize_abbreviations("Dr. Ahmet") == "doktor Ahmet"
 
+    def test_urls(self):
+        assert turkificate.normalize_urls("https://firma.com/detay") == (
+            "firma nokta com bölü detay"
+        )
+
     def test_ordinals_apostrophe(self):
         assert turkificate.normalize_ordinals("5'inci") == "beşinci"
 
