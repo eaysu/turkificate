@@ -58,6 +58,29 @@ class TestNormalizers:
     def test_ordinals_apostrophe(self):
         assert turkificate.normalize_ordinals("5'inci") == "beşinci"
 
+    def test_phones(self):
+        expected = "sıfır beş yüz otuz iki yüz yirmi üç kırk beş altmış yedi"
+        assert turkificate.normalize_phones("0532 123 45 67") == expected
+        assert turkificate.normalize_phones("+90 (532) 123-45-67") == expected
+        assert turkificate.normalize_phones("0090 532 123 45 67") == expected
+        assert turkificate.normalize_phones("0212 555 12 34") == (
+            "sıfır iki yüz on iki beş yüz elli beş on iki otuz dört"
+        )
+
+    def test_invalid_phone_untouched(self):
+        assert turkificate.normalize_phones("1234567890") == "1234567890"
+
+    def test_turkish_ids(self):
+        assert turkificate.normalize_turkish_ids("10000000146") == (
+            "bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı"
+        )
+        assert turkificate.normalize_turkish_ids("100 000 001 46") == (
+            "bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı"
+        )
+
+    def test_invalid_turkish_id_untouched(self):
+        assert turkificate.normalize_turkish_ids("12345678901") == "12345678901"
+
 
 class TestPipeline:
     def test_feature_selection_isolation(self):
@@ -74,6 +97,13 @@ class TestPipeline:
     def test_full_pipeline(self):
         out = turkificate.normalize("Dr. Ali 01.01.2024'te 100 TL ödedi.")
         assert out == "doktor Ali bir Ocak iki bin yirmi dört'te yüz lira ödedi."
+
+    def test_full_pipeline_handles_phones_and_turkish_ids_before_numbers(self):
+        out = turkificate.normalize("Tel: 0532 123 45 67, TC: 10000000146")
+        assert out == (
+            "Tel: sıfır beş yüz otuz iki yüz yirmi üç kırk beş altmış yedi, "
+            "TC: bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı"
+        )
 
     def test_main_function_and_alias(self):
         text = "3 elma"

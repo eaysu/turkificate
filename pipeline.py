@@ -18,6 +18,8 @@ ALL = "all"
 DEFAULT_ORDER = [
     "emails",
     "urls",
+    "phones",
+    "turkish_ids",
     "dates",
     "times",
     "percent",

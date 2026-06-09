@@ -13,6 +13,7 @@ from .data import ABBREVIATIONS, CURRENCY, MONTHS, SYMBOLS, UNITS
 from .numbers import integer_to_ordinal, integer_to_words, read_number
 
 _TRAIL_PUNCT = re.compile(r'[.,;:!?)]+$')
+_DIGIT_WORDS = [integer_to_words(i) for i in range(10)]
 
 
 @register
@@ -63,6 +64,89 @@ class UrlNormalizer(Normalizer):
                    .replace('-', ' tire ')
                    .replace('_', ' alt çizgi '))
             return re.sub(r' +', ' ', url).strip() + trail
+        return self._re.sub(repl, text)
+
+
+def _digits_only(value):
+    return re.sub(r"\D", "", value)
+
+
+def _read_digits(value):
+    return " ".join(_DIGIT_WORDS[int(ch)] for ch in value)
+
+
+def _normalize_phone_digits(value):
+    digits = _digits_only(value)
+    if digits.startswith("0090"):
+        digits = digits[4:]
+    if digits.startswith("90") and len(digits) == 12:
+        digits = digits[2:]
+    if digits.startswith("0"):
+        digits = digits[1:]
+    if len(digits) != 10 or digits[0] not in "2345":
+        return None
+    return digits
+
+
+def _read_phone_number(value):
+    digits = _normalize_phone_digits(value)
+    if digits is None:
+        return None
+    area, first, second, third = digits[:3], digits[3:6], digits[6:8], digits[8:]
+    groups = ["sıfır", area, first, second, third]
+    return " ".join(integer_to_words(int(group)) if group != "sıfır" else group
+                    for group in groups)
+
+
+def _is_valid_turkish_id(value):
+    digits = _digits_only(value)
+    if len(digits) != 11 or digits[0] == "0":
+        return False
+    nums = [int(ch) for ch in digits]
+    odd_sum = sum(nums[i] for i in (0, 2, 4, 6, 8))
+    even_sum = sum(nums[i] for i in (1, 3, 5, 7))
+    tenth = ((odd_sum * 7) - even_sum) % 10
+    eleventh = sum(nums[:10]) % 10
+    return nums[9] == tenth and nums[10] == eleventh
+
+
+@register
+class PhoneNormalizer(Normalizer):
+    """Convert Turkish phone numbers to spoken form: 0532 123 45 67 -> sıfır beş yüz otuz iki ..."""
+
+    name = "phones"
+
+    def configure(self, **options):
+        self._re = re.compile(
+            r"(?<![\w+])"
+            r"(?:(?:\+90|0090|90)[\s.-]*)?"
+            r"\(?(0?[2-5]\d{2})\)?[\s.-]*"
+            r"(\d{3})[\s.-]*(\d{2})[\s.-]*(\d{2})"
+            r"(?!\d)"
+        )
+
+    def apply(self, text):
+        def repl(m):
+            spoken = _read_phone_number(m.group(0))
+            return spoken if spoken is not None else m.group(0)
+        return self._re.sub(repl, text)
+
+
+@register
+class TurkishIdNormalizer(Normalizer):
+    """Convert valid Turkish identity numbers to digit-by-digit spoken form."""
+
+    name = "turkish_ids"
+
+    def configure(self, **options):
+        self._re = re.compile(r"(?<![\d+])([1-9](?:[\s.-]?\d){10})(?!\d)")
+
+    def apply(self, text):
+        def repl(m):
+            value = m.group(1)
+            if not _is_valid_turkish_id(value):
+                return m.group(0)
+            return _read_digits(_digits_only(value))
         return self._re.sub(repl, text)
 
 # Turkish-formatted number pattern (thousands '.', decimal ','). Reused widely.
