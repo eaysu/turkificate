@@ -1,9 +1,10 @@
 # turkificate
 
 A Turkish text normalization library. It converts numbers, dates, times,
-abbreviations, currencies, percentages, ordinals and symbols into their written
-Turkish form, following Turkish grammar. Built for TTS pre-processing, search
-indexing and text cleaning.
+phone numbers, Turkish identity numbers, abbreviations, currencies,
+percentages, ordinals and symbols into their written Turkish form, following
+Turkish grammar. Built for TTS pre-processing, search indexing and text
+cleaning.
 
 > _"The language is the core of our being - Noam Chomsky"_ 
 
@@ -63,6 +64,8 @@ List available concepts with `turkificate.available_features()`.
 |---|---|---|
 | `emails` | e-mail addresses | `info@firma.com` → info et firma nokta com |
 | `urls` | URLs | `https://firma.com/detay` → firma nokta com bölü detay |
+| `phones` | Turkish phone numbers | `0532 123 45 67` → sıfır beş yüz otuz iki yüz yirmi üç kırk beş altmış yedi |
+| `turkish_ids` | valid Turkish identity numbers | `10000000146` → bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı |
 | `numbers` | integer / decimal / signed | `3,5` → üç virgül beş |
 | `dates` | DD.MM.YYYY | `15.03.2024` → on beş Mart iki bin yirmi dört |
 | `times` | HH:MM(:SS) | `14:30` → on dört otuz |
@@ -89,6 +92,8 @@ tn = TurkishNormalizer(options={
 turkificate.normalize_numbers("3 elma")               # "üç elma"
 turkificate.normalize_emails("info@firma.com")         # "info et firma nokta com"
 turkificate.normalize_urls("https://firma.com/detay")  # "firma nokta com bölü detay"
+turkificate.normalize_phones("0532 123 45 67")
+turkificate.normalize_turkish_ids("10000000146")
 turkificate.normalize_dates(...)
 turkificate.normalize_currency(...)
 # normalize_times, normalize_percent, normalize_ordinals,
@@ -141,7 +146,7 @@ instance is reused across thousands of calls.
 - The period ordinal form (`3. kat` → "üçüncü kat") is enabled by default. It requires whitespace + a non-whitespace character after the dot, so sentence-final periods are safe. Disable with `period_ordinals=False`.
 - The number engine is one-way; the reverse direction (words → digits) is not yet implemented.
 - Context-sensitive suffixes (`5'te` → "beşte") are not handled yet.
-- Roman numerals, phone numbers and fractions (`3/4`) can be added.
+- Roman numerals and fractions (`3/4`) can be added.
 
 ## Development
 

@@ -57,6 +57,8 @@ __all__ = [
     # Per-concept helpers
     "normalize_emails",
     "normalize_urls",
+    "normalize_phones",
+    "normalize_turkish_ids",
     "normalize_numbers",
     "normalize_dates",
     "normalize_times",
@@ -98,6 +100,8 @@ def _make_single(feature):
 
 normalize_emails = _make_single("emails")
 normalize_urls = _make_single("urls")
+normalize_phones = _make_single("phones")
+normalize_turkish_ids = _make_single("turkish_ids")
 normalize_numbers = _make_single("numbers")
 normalize_dates = _make_single("dates")
 normalize_times = _make_single("times")
