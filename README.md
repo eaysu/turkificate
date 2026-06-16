@@ -1,10 +1,10 @@
 # turkificate
 
 A Turkish text normalization library. It converts numbers, dates, times,
-phone numbers, Turkish identity numbers, abbreviations, currencies,
-percentages, ordinals and symbols into their written Turkish form, following
-Turkish grammar. Built for TTS pre-processing, search indexing and text
-cleaning.
+phone numbers, Turkish identity numbers, company names, technology terms,
+abbreviations, currencies, percentages, ordinals and symbols into their written
+Turkish form, following Turkish grammar. Built for TTS pre-processing, search
+indexing and text cleaning.
 
 > _"The language is the core of our being - Noam Chomsky"_ 
 
@@ -47,6 +47,29 @@ tn.normalize("Saat 14:30, fiyat 99,90 TL")
 # "Saat 14:30, fiyat doksan dokuz virgül doksan TL"  (times & currency untouched)
 ```
 
+Enable or disable company/brand name normalization through the same feature list:
+
+```python
+TurkishNormalizer(features=["companies"]).normalize("Turkcell ve Vodafone")
+# "türksel ve vodafon"
+
+TurkishNormalizer(features=["companies"]).normalize("Google, Apple ve Microsoft")
+# "gugıl, epıl ve maykrosoft"
+
+TurkishNormalizer(features=["currency"]).normalize("Turkcell 100 TL")
+# "Turkcell yüz lira"  (company names untouched)
+```
+
+Technology term normalization is also selectable:
+
+```python
+TurkishNormalizer(features=["technology_terms"]).normalize("GPT, FP16 ve API")
+# "ci pi ti, ef pi on altı ve ey pi ay"
+
+TurkishNormalizer(features=["numbers"]).normalize("GPT ve 2")
+# "GPT ve iki"  (technology terms untouched)
+```
+
 ### Normalize everything
 
 Pass nothing (the default), or the explicit `"all"` keyword:
@@ -66,6 +89,8 @@ List available concepts with `turkificate.available_features()`.
 | `urls` | URLs | `https://firma.com/detay` → firma nokta com bölü detay |
 | `phones` | Turkish phone numbers | `0532 123 45 67` → sıfır beş yüz otuz iki yüz yirmi üç kırk beş altmış yedi |
 | `turkish_ids` | valid Turkish identity numbers | `10000000146` → bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı |
+| `companies` | company and brand names | `Google` → gugıl, `Garanti BBVA` → Garanti bebevea |
+| `technology_terms` | AI, ML and common technology terms | `GPT` → ci pi ti, `FP16` → ef pi on altı |
 | `numbers` | integer / decimal / signed | `3,5` → üç virgül beş |
 | `dates` | DD.MM.YYYY | `15.03.2024` → on beş Mart iki bin yirmi dört |
 | `times` | HH:MM(:SS) | `14:30` → on dört otuz |
@@ -94,6 +119,8 @@ turkificate.normalize_emails("info@firma.com")         # "info et firma nokta co
 turkificate.normalize_urls("https://firma.com/detay")  # "firma nokta com bölü detay"
 turkificate.normalize_phones("0532 123 45 67")
 turkificate.normalize_turkish_ids("10000000146")
+turkificate.normalize_companies("Google ve Apple")       # "gugıl ve epıl"
+turkificate.normalize_technology_terms("GPT ve API")     # "ci pi ti ve ey pi ay"
 turkificate.normalize_dates(...)
 turkificate.normalize_currency(...)
 # normalize_times, normalize_percent, normalize_ordinals,

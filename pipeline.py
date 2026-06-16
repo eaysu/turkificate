@@ -20,6 +20,8 @@ DEFAULT_ORDER = [
     "urls",
     "phones",
     "turkish_ids",
+    "companies",
+    "technology_terms",
     "dates",
     "times",
     "percent",

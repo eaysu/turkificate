@@ -9,7 +9,15 @@ Email/URL normalizers run first so the symbol normalizer never sees raw @ or dot
 import re
 
 from .base import Normalizer, register
-from .data import ABBREVIATIONS, CURRENCY, MONTHS, SYMBOLS, UNITS
+from .data import (
+    ABBREVIATIONS,
+    COMPANIES,
+    CURRENCY,
+    MONTHS,
+    SYMBOLS,
+    TECHNOLOGY_TERMS,
+    UNITS,
+)
 from .numbers import integer_to_ordinal, integer_to_words, read_number
 
 _TRAIL_PUNCT = re.compile(r'[.,;:!?)]+$')
@@ -148,6 +156,40 @@ class TurkishIdNormalizer(Normalizer):
                 return m.group(0)
             return _read_digits(_digits_only(value))
         return self._re.sub(repl, text)
+
+
+@register
+class CompanyNormalizer(Normalizer):
+    """Convert company and brand names to Turkish TTS spoken forms."""
+
+    name = "companies"
+
+    def configure(self, **options):
+        keys = sorted(COMPANIES, key=len, reverse=True)
+        alt = "|".join(re.escape(k).replace(r"\ ", r"\s+") for k in keys)
+        self._re = re.compile(rf"(?<!\w)({alt})(?!\w)", re.IGNORECASE)
+
+    def apply(self, text):
+        def repl(m):
+            key = re.sub(r"\s+", " ", m.group(1).lower())
+            return COMPANIES[key]
+
+        return self._re.sub(repl, text)
+
+
+@register
+class TechnologyTermNormalizer(Normalizer):
+    """Convert technology acronyms and product terms to Turkish TTS spoken forms."""
+
+    name = "technology_terms"
+
+    def configure(self, **options):
+        keys = sorted(TECHNOLOGY_TERMS, key=len, reverse=True)
+        alt = "|".join(re.escape(k) for k in keys)
+        self._re = re.compile(rf"(?<!\w)({alt})(?!\w)")
+
+    def apply(self, text):
+        return self._re.sub(lambda m: TECHNOLOGY_TERMS[m.group(1)], text)
 
 # Turkish-formatted number pattern (thousands '.', decimal ','). Reused widely.
 _NUM = r"\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?"
