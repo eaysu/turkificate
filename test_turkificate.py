@@ -55,6 +55,11 @@ class TestNormalizers:
     def test_abbreviations(self):
         assert turkificate.normalize_abbreviations("Dr. Ahmet") == "doktor Ahmet"
 
+    def test_urls(self):
+        assert turkificate.normalize_urls("https://firma.com/detay") == (
+            "firma nokta com bölü detay"
+        )
+
     def test_ordinals_apostrophe(self):
         assert turkificate.normalize_ordinals("5'inci") == "beşinci"
 
@@ -81,6 +86,42 @@ class TestNormalizers:
     def test_invalid_turkish_id_untouched(self):
         assert turkificate.normalize_turkish_ids("12345678901") == "12345678901"
 
+    def test_companies(self):
+        assert turkificate.normalize_companies("Turkcell ve Vodafone") == (
+            "türksel ve vodafon"
+        )
+        assert turkificate.normalize_companies("Garanti BBVA") == (
+            "Garanti bebevea"
+        )
+        assert turkificate.normalize_companies("Google, Apple ve Microsoft") == (
+            "gugıl, epıl ve maykrosoft"
+        )
+        assert turkificate.normalize_companies("YouTube, Spotify ve Netflix") == (
+            "yu tub, spotifay ve netfliks"
+        )
+        assert turkificate.normalize_companies("Burger King, Media Markt ve HP") == (
+            "börgır king, medya markt ve eyç pi"
+        )
+
+    def test_companies_are_case_insensitive(self):
+        assert turkificate.normalize_companies("TURKCELL, vodafone") == (
+            "türksel, vodafon"
+        )
+        assert turkificate.normalize_companies("OPENAI ve github") == (
+            "opın ey ay ve git hab"
+        )
+
+    def test_technology_terms(self):
+        assert turkificate.normalize_technology_terms("AI, LLM, API ve GraphQL") == (
+            "ey ay, el el em, ey pi ay ve graf kyu el"
+        )
+        assert turkificate.normalize_technology_terms("FP16, T5 ve K8s") == (
+            "ef pi on altı, ti fayv ve key eyt es"
+        )
+
+    def test_technology_terms_do_not_match_inside_words(self):
+        assert turkificate.normalize_technology_terms("PLAIN") == "PLAIN"
+
 
 class TestPipeline:
     def test_feature_selection_isolation(self):
@@ -88,6 +129,22 @@ class TestPipeline:
         out = tn.normalize("14:30 ve %50")
         assert "on dört otuz" in out
         assert "%50" in out          # percent not selected -> untouched
+
+    def test_companies_can_be_selected_or_left_out(self):
+        assert TurkishNormalizer(features=["companies"]).normalize("Turkcell 100 TL") == (
+            "türksel 100 TL"
+        )
+        assert TurkishNormalizer(features=["currency"]).normalize("Turkcell 100 TL") == (
+            "Turkcell yüz lira"
+        )
+
+    def test_technology_terms_can_be_selected_or_left_out(self):
+        assert TurkishNormalizer(features=["technology_terms"]).normalize("GPT ve 2") == (
+            "ci pi ti ve 2"
+        )
+        assert TurkishNormalizer(features=["numbers"]).normalize("GPT ve 2") == (
+            "GPT ve iki"
+        )
 
     def test_all_keyword(self):
         assert TurkishNormalizer(features="all").normalize("%50") == "yüzde elli"
@@ -104,6 +161,14 @@ class TestPipeline:
             "Tel: sıfır beş yüz otuz iki yüz yirmi üç kırk beş altmış yedi, "
             "TC: bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı"
         )
+
+    def test_full_pipeline_handles_companies(self):
+        out = turkificate.normalize("Turkcell, Vodafone ve Garanti BBVA")
+        assert out == "türksel, vodafon ve Garanti bebevea"
+
+    def test_full_pipeline_handles_technology_terms_before_numbers(self):
+        out = turkificate.normalize("GPT, FP16 ve K8s 2024")
+        assert out == "ci pi ti, ef pi on altı ve key eyt es iki bin yirmi dört"
 
     def test_main_function_and_alias(self):
         text = "3 elma"

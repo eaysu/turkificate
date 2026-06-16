@@ -59,6 +59,8 @@ __all__ = [
     "normalize_urls",
     "normalize_phones",
     "normalize_turkish_ids",
+    "normalize_companies",
+    "normalize_technology_terms",
     "normalize_numbers",
     "normalize_dates",
     "normalize_times",
@@ -102,6 +104,8 @@ normalize_emails = _make_single("emails")
 normalize_urls = _make_single("urls")
 normalize_phones = _make_single("phones")
 normalize_turkish_ids = _make_single("turkish_ids")
+normalize_companies = _make_single("companies")
+normalize_technology_terms = _make_single("technology_terms")
 normalize_numbers = _make_single("numbers")
 normalize_dates = _make_single("dates")
 normalize_times = _make_single("times")
