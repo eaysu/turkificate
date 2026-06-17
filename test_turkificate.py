@@ -118,6 +118,8 @@ class TestNormalizers:
         assert turkificate.normalize_technology_terms("FP16, T5 ve K8s") == (
             "ef pi on altı, ti fayv ve key eyt es"
         )
+        assert turkificate.normalize_technology_terms("5G") == "beş ge"
+        assert turkificate.normalize_technology_terms("Docker") == "dokır"
 
     def test_technology_terms_do_not_match_inside_words(self):
         assert turkificate.normalize_technology_terms("PLAIN") == "PLAIN"
@@ -169,6 +171,9 @@ class TestPipeline:
     def test_full_pipeline_handles_technology_terms_before_numbers(self):
         out = turkificate.normalize("GPT, FP16 ve K8s 2024")
         assert out == "ci pi ti, ef pi on altı ve key eyt es iki bin yirmi dört"
+
+    def test_full_pipeline_handles_5g_before_units(self):
+        assert turkificate.normalize("Turkcell 5G") == "türksel beş ge"
 
     def test_main_function_and_alias(self):
         text = "3 elma"
