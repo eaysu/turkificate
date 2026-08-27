@@ -34,7 +34,7 @@ from .numbers import (
 )
 from .pipeline import ALL, DEFAULT_ORDER, Pipeline, TurkishNormalizer
 
-__version__ = "0.1.1"
+__version__ = "0.1.5"
 
 __all__ = [
     # Main interface
