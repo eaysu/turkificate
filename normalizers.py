@@ -18,10 +18,18 @@ from .data import (
     TECHNOLOGY_TERMS,
     UNITS,
 )
+from .morphology import inflect_tail
 from .numbers import integer_to_ordinal, integer_to_words, read_number
 
 _TRAIL_PUNCT = re.compile(r'[.,;:!?)]+$')
 _DIGIT_WORDS = [integer_to_words(i) for i in range(10)]
+_TURKISH_LETTERS = {
+    "A": "a", "B": "be", "C": "ce", "Ç": "çe", "D": "de", "E": "e",
+    "F": "fe", "G": "ge", "Ğ": "yumuşak ge", "H": "he", "I": "ı",
+    "İ": "i", "J": "je", "K": "ke", "L": "le", "M": "me", "N": "ne",
+    "O": "o", "Ö": "ö", "P": "pe", "R": "re", "S": "se", "Ş": "şe",
+    "T": "te", "U": "u", "Ü": "ü", "V": "ve", "Y": "ye", "Z": "ze",
+}
 
 
 @register
@@ -191,6 +199,33 @@ class TechnologyTermNormalizer(Normalizer):
     def apply(self, text):
         return self._re.sub(lambda m: TECHNOLOGY_TERMS[m.group(1)], text)
 
+def _iban_checksum(digits: str) -> bool:
+    """Validate a complete Turkish IBAN with the standard modulo-97 rule."""
+    if not re.fullmatch(r"TR\d{24}", digits):
+        return False
+    rearranged = digits[4:] + "T" + "R" + digits[2:4]
+    numeric = "".join(str(ord(ch) - 55) if ch.isalpha() else ch for ch in rearranged)
+    return int(numeric) % 97 == 1
+
+
+@register
+class IbanNormalizer(Normalizer):
+    """Read a checksum-valid Turkish IBAN without exposing partial fragments."""
+
+    name = "ibans"
+
+    def configure(self, **options):
+        self._re = re.compile(r"(?<![A-Z0-9])((?:TR\d{2})(?:[ ]?\d{4}){5}[ ]?\d{2})(?![A-Z0-9])")
+
+    def apply(self, text):
+        def repl(m):
+            compact = m.group(1).replace(" ", "")
+            if not _iban_checksum(compact):
+                return m.group(0)
+            prefix = " ".join(_TURKISH_LETTERS[ch] for ch in compact[:2])
+            return prefix + " " + _read_digits(compact[2:])
+        return self._re.sub(repl, text)
+
 # Turkish-formatted number pattern (thousands '.', decimal ','). Reused widely.
 _NUM = r"\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?"
 
@@ -203,12 +238,91 @@ class NumberNormalizer(Normalizer):
 
     def configure(self, **options):
         # A sign is only read when it is not in the middle of a token (3-5 = a range).
-        self._re = re.compile(rf"(?<![\w.,])([+-]?)({_NUM})")
+        self._re = re.compile(
+            rf"(?<![\w.,])([+-]?)({_NUM})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?"
+        )
 
     def apply(self, text):
         def repl(m):
-            return read_number(m.group(1) + m.group(2))
+            return inflect_tail(read_number(m.group(1) + m.group(2)), m.group(3))
         return self._re.sub(repl, text)
+
+
+@register
+class FractionNormalizer(Normalizer):
+    """Read common numeric fractions: ``2/3'ü`` -> ``iki bölü üçü``."""
+
+    name = "fractions"
+
+    def configure(self, **options):
+        self._re = re.compile(
+            r"(?<![\w/])(\d+(?:,\d+)?)/(\d+(?:,\d+)?)(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?![\w/])"
+        )
+
+    def apply(self, text):
+        def repl(m):
+            if float(m.group(2).replace(",", ".")) == 0:
+                return m.group(0)
+            spoken = f"{read_number(m.group(1))} bölü {read_number(m.group(2))}"
+            return inflect_tail(spoken, m.group(3))
+        return self._re.sub(repl, text)
+
+
+@register
+class RangeNormalizer(Normalizer):
+    """Read numeric ranges and scores while keeping their endpoint order."""
+
+    name = "ranges"
+
+    def configure(self, **options):
+        self._re = re.compile(
+            rf"(?<![\w.,])({_NUM})\s*[-–]\s*({_NUM})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?![\w])"
+        )
+
+    def apply(self, text):
+        return self._re.sub(
+            lambda m: inflect_tail(
+                f"{read_number(m.group(1))} tire {read_number(m.group(2))}", m.group(3)
+            ),
+            text,
+        )
+
+
+def _roman_to_int(value: str) -> int | None:
+    values = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+    try:
+        total = sum(
+            -values[ch] if index + 1 < len(value) and values[ch] < values[value[index + 1]] else values[ch]
+            for index, ch in enumerate(value)
+        )
+    except KeyError:
+        return None
+    # Re-rendering confirms canonical spelling and rejects forms such as IIV.
+    thousands, remainder = divmod(total, 1000)
+    rendered = "M" * thousands
+    for amount, token in ((900, "CM"), (500, "D"), (400, "CD"), (100, "C"),
+                          (90, "XC"), (50, "L"), (40, "XL"), (10, "X"),
+                          (9, "IX"), (5, "V"), (4, "IV"), (1, "I")):
+        count, remainder = divmod(remainder, amount)
+        rendered += token * count
+    return total if 0 < total <= 3999 and rendered == value else None
+
+
+@register
+class RomanNumeralNormalizer(Normalizer):
+    """Read canonical Roman ordinals in unambiguous contextual forms."""
+
+    name = "roman_numerals"
+
+    def configure(self, **options):
+        self._period = re.compile(r"(?<![A-Z])([IVXLCDM]+)\.(?=\s+[A-ZÇĞİÖŞÜ])")
+        self._century = re.compile(r"(?<![A-Z])([IVXLCDM]+)\.(?=\s+yüzyıl\b)")
+
+    def apply(self, text):
+        def repl(m):
+            number = _roman_to_int(m.group(1))
+            return integer_to_ordinal(number) if number is not None else m.group(0)
+        return self._century.sub(repl, self._period.sub(repl, text))
 
 
 @register
@@ -244,15 +358,29 @@ class DateNormalizer(Normalizer):
     name = "dates"
 
     def configure(self, **options):
-        self._re = re.compile(r"(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?!\d)")
+        self._re = re.compile(
+            r"(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?!\d)"
+        )
+        self._iso = re.compile(
+            r"(?<!\d)(\d{4})-(\d{2})-(\d{2})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?!\d)"
+        )
 
     def apply(self, text):
         def repl(m):
             day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
             if not (1 <= day <= 31 and 1 <= month <= 12):
                 return m.group(0)        # invalid date: leave untouched
-            return f"{integer_to_words(day)} {MONTHS[month]} {integer_to_words(year)}"
-        return self._re.sub(repl, text)
+            spoken = f"{integer_to_words(day)} {MONTHS[month]} {integer_to_words(year)}"
+            return inflect_tail(spoken, m.group(4))
+
+        def iso_repl(m):
+            year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if not (1 <= day <= 31 and 1 <= month <= 12):
+                return m.group(0)
+            spoken = f"{integer_to_words(day)} {MONTHS[month]} {integer_to_words(year)}"
+            return inflect_tail(spoken, m.group(4))
+
+        return self._iso.sub(iso_repl, self._re.sub(repl, text))
 
 
 @register
@@ -263,7 +391,9 @@ class TimeNormalizer(Normalizer):
 
     def configure(self, prefix_hour: bool = False, **options):
         self._prefix_hour = prefix_hour
-        self._re = re.compile(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?(?!\d)")
+        self._re = re.compile(
+            r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?!\d)"
+        )
 
     def apply(self, text):
         def repl(m):
@@ -276,7 +406,7 @@ class TimeNormalizer(Normalizer):
                 parts.append(integer_to_words(minutes))
             if m.group(3) is not None:
                 parts.append(integer_to_words(int(m.group(3))))
-            return " ".join(parts)
+            return inflect_tail(" ".join(parts), m.group(4))
         return self._re.sub(repl, text)
 
 
@@ -288,12 +418,16 @@ class PercentNormalizer(Normalizer):
 
     def configure(self, **options):
         # %50, % 50 and 50% forms.
-        self._pre = re.compile(rf"%\s*({_NUM})")
-        self._post = re.compile(rf"({_NUM})\s*%")
+        self._pre = re.compile(rf"%\s*({_NUM})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?")
+        self._post = re.compile(rf"({_NUM})\s*%(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?")
 
     def apply(self, text):
-        text = self._pre.sub(lambda m: f"yüzde {read_number(m.group(1))}", text)
-        text = self._post.sub(lambda m: f"yüzde {read_number(m.group(1))}", text)
+        text = self._pre.sub(
+            lambda m: inflect_tail(f"yüzde {read_number(m.group(1))}", m.group(2)), text
+        )
+        text = self._post.sub(
+            lambda m: inflect_tail(f"yüzde {read_number(m.group(1))}", m.group(2)), text
+        )
         return text
 
 
@@ -311,16 +445,31 @@ class CurrencyNormalizer(Normalizer):
         sym_alt = "|".join(re.escape(c) for c in symbols)
         all_alt = "|".join(re.escape(c) for c in all_codes)
         # Leading: symbols only ($50, ₺100).
-        self._pre = re.compile(rf"({sym_alt})\s*({_NUM})")
+        self._pre = re.compile(rf"({sym_alt})\s*({_NUM})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?")
         # Trailing: symbols or codes (100 TL, 100₺, 50$).
-        self._post = re.compile(rf"({_NUM})\s*({all_alt})(?![a-zçğıöşü])", re.IGNORECASE)
+        self._post = re.compile(
+            rf"({_NUM})\s*({all_alt})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?![a-zçğıöşü])",
+            re.IGNORECASE,
+        )
+
+    @staticmethod
+    def _spoken(number, label, suffix):
+        currency = CURRENCY[label.lower()]
+        major, sep, fractional = number.replace(".", "").partition(",")
+        parts = [integer_to_words(int(major or "0")), currency]
+        if fractional:
+            minor = int((fractional + "00")[:2])
+            if minor:
+                minor_words = {"lira": "kuruş", "dolar": "sent", "avro": "sent", "sterlin": "peni"}
+                parts.extend([integer_to_words(minor), minor_words.get(currency, "kuruş")])
+        return inflect_tail(" ".join(parts), suffix)
 
     def apply(self, text):
         def pre(m):
-            return f"{read_number(m.group(2))} {CURRENCY[m.group(1).lower()]}"
+            return self._spoken(m.group(2), m.group(1), m.group(3))
 
         def post(m):
-            return f"{read_number(m.group(1))} {CURRENCY[m.group(2).lower()]}"
+            return self._spoken(m.group(1), m.group(2), m.group(3))
 
         # Trailing form first so codes attach to the number on their left.
         text = self._post.sub(post, text)
@@ -342,13 +491,16 @@ class UnitNormalizer(Normalizer):
         units = sorted(UNITS, key=len, reverse=True)
         alt = "|".join(re.escape(u) for u in units)
         # A unit right after a digit, not followed by another letter/digit.
-        self._re = re.compile(rf"(?<=\d)\s*({alt})(?![a-zçğıöşü0-9])", re.IGNORECASE)
+        self._re = re.compile(
+            rf"(?<=\d)\s*({alt})(?:['’]([a-zA-ZçğıöşüÇĞİÖŞÜ]+))?(?![a-zçğıöşü0-9])",
+            re.IGNORECASE,
+        )
 
     def apply(self, text):
         def repl(m):
             key = m.group(1)
             expansion = UNITS.get(key.lower()) or UNITS.get(key)
-            return f" {expansion}" if expansion else key
+            return f" {inflect_tail(expansion, m.group(2))}" if expansion else key
         return self._re.sub(repl, text)
 
 

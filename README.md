@@ -1,10 +1,10 @@
 # turkificate
 
 A Turkish text normalization library. It converts numbers, dates, times,
-phone numbers, Turkish identity numbers, company names, technology terms,
-abbreviations, currencies, percentages, ordinals and symbols into their written
-Turkish form, following Turkish grammar. Built for TTS pre-processing, search
-indexing and text cleaning.
+phone numbers, Turkish identity numbers and IBANs, company names, technology
+terms, abbreviations, currencies, percentages, fractions, ranges, Roman ordinals and symbols into their written
+Turkish form. Productive suffix harmony is supported for common expressions.
+Built for TTS pre-processing, search indexing and text cleaning.
 
 > _"The language is the core of our being - Noam Chomsky"_ 
 
@@ -28,7 +28,7 @@ pip install -e .
 import turkificate
 
 turkificate.turkificate("Dr. Ahmet 15.03.2024'te %25 indirimle 1.250 TL ödedi.")
-# "doktor Ahmet on beş Mart iki bin yirmi dört'te yüzde yirmi beş
+# "doktor Ahmet on beş Mart iki bin yirmi dörtte yüzde yirmi beş
 #  indirimle bin iki yüz elli lira ödedi."
 ```
 
@@ -91,12 +91,16 @@ List available concepts with `turkificate.available_features()`.
 | `turkish_ids` | valid Turkish identity numbers | `10000000146` → bir sıfır sıfır sıfır sıfır sıfır sıfır sıfır bir dört altı |
 | `companies` | company and brand names | `Google` → gugıl, `Garanti BBVA` → Garanti bebevea |
 | `technology_terms` | AI, ML and common technology terms | `GPT` → ci pi ti, `FP16` → ef pi on altı |
+| `ibans` | checksum-valid Turkish IBANs | `TR330006100519786457841326` → te re üç üç sıfır… |
 | `numbers` | integer / decimal / signed | `3,5` → üç virgül beş |
-| `dates` | DD.MM.YYYY | `15.03.2024` → on beş Mart iki bin yirmi dört |
+| `dates` | DD.MM.YYYY and ISO dates | `2024-03-15` → on beş Mart iki bin yirmi dört |
 | `times` | HH:MM(:SS) | `14:30` → on dört otuz |
 | `percent` | percent sign | `%50` → yüzde elli |
 | `currency` | currencies | `100 TL` → yüz lira |
+| `fractions` | fractions | `2/3'ü` → iki bölü üçü |
+| `ranges` | numeric ranges / scores | `10-15` → on tire on beş |
 | `ordinals` | ordinal numbers | `5'inci` → beşinci, `3. kat` → üçüncü kat |
+| `roman_numerals` | contextual Roman ordinals | `IV. Murat` → dördüncü Murat |
 | `units` | units of measure | `42 km` → kırk iki kilometre, `-3 °C` → eksi üç derece |
 | `abbreviations` | lexical abbreviations | `Dr.` → doktor |
 | `symbols` | single-character symbols | `&` → ve, `×` → çarpı, `÷` → bölü |
@@ -121,10 +125,12 @@ turkificate.normalize_phones("0532 123 45 67")
 turkificate.normalize_turkish_ids("10000000146")
 turkificate.normalize_companies("Google ve Apple")       # "gugıl ve epıl"
 turkificate.normalize_technology_terms("GPT ve API")     # "ci pi ti ve ey pi ay"
+turkificate.normalize_ibans("TR330006100519786457841326")
 turkificate.normalize_dates(...)
 turkificate.normalize_currency(...)
-# normalize_times, normalize_percent, normalize_ordinals,
-# normalize_units, normalize_abbreviations, normalize_symbols
+# normalize_times, normalize_percent, normalize_fractions, normalize_ranges,
+# normalize_ordinals, normalize_roman_numerals, normalize_units,
+# normalize_abbreviations, normalize_symbols
 ```
 
 Direct number engine:
@@ -168,12 +174,40 @@ unit and currency dictionaries are compiled into a single alternation regex; the
 number-to-words engine is `lru_cache`-d; and because `apply` is pure, a single
 instance is reused across thousands of calls.
 
+## Ambiguity-aware results
+
+`normalize()` preserves the original eager string API. For callers that need to
+identify a potentially ambiguous dotted number, use `normalize_detailed()`:
+
+```python
+from turkificate import TurkishNormalizer, NormalizationAmbiguityError
+
+tn = TurkishNormalizer()
+tn.normalize_detailed("Sürüm 1.234 hazır.", ambiguity_policy="preserve")
+# NormalizationResult(text='Sürüm 1.234 hazır.', complete=False, issues=(...))
+
+# Existing behaviour remains available explicitly.
+tn.normalize_detailed("Sürüm 1.234 hazır.", ambiguity_policy="eager")
+# "Sürüm bin iki yüz otuz dört hazır." with an ambiguity issue
+
+try:
+    tn.normalize_detailed("Sürüm 1.234 hazır.", ambiguity_policy="reject")
+except NormalizationAmbiguityError:
+    pass
+```
+
+Issues use zero-based Python character offsets in the original text. Current
+ambiguity detection intentionally covers bare dotted thousands forms; the API is
+designed to gain further ambiguity checks without changing `normalize()`.
+
 ## Known limits (roadmap)
 
 - The period ordinal form (`3. kat` → "üçüncü kat") is enabled by default. It requires whitespace + a non-whitespace character after the dot, so sentence-final periods are safe. Disable with `period_ordinals=False`.
 - The number engine is one-way; the reverse direction (words → digits) is not yet implemented.
-- Context-sensitive suffixes (`5'te` → "beşte") are not handled yet.
-- Roman numerals and fractions (`3/4`) can be added.
+- The suffix layer handles common case, possessive and derivational endings; it
+  is not a full Turkish morphological analyser.
+- Roman numerals are deliberately normalized only in contextual ordinal forms
+  such as `IV. Murat`; bare `IV` remains unchanged.
 
 ## Development
 

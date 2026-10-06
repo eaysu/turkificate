@@ -156,7 +156,7 @@ class TestPipeline:
 
     def test_full_pipeline(self):
         out = turkificate.normalize("Dr. Ali 01.01.2024'te 100 TL ödedi.")
-        assert out == "doktor Ali bir Ocak iki bin yirmi dört'te yüz lira ödedi."
+        assert out == "doktor Ali bir Ocak iki bin yirmi dörtte yüz lira ödedi."
 
     def test_full_pipeline_handles_phones_and_turkish_ids_before_numbers(self):
         out = turkificate.normalize("Tel: 0532 123 45 67, TC: 10000000146")
@@ -184,3 +184,52 @@ class TestPipeline:
     def test_unknown_feature_raises(self):
         with pytest.raises(ValueError):
             TurkishNormalizer(features=["no_such_concept"])
+
+
+class TestAdvancedNormalization:
+    def test_productive_suffix_harmony(self):
+        assert turkificate.normalize("5'te") == "beşte"
+        assert turkificate.normalize("01.01.2026'da") == "bir Ocak iki bin yirmi altıda"
+        assert turkificate.normalize("09:30'da") == "dokuz otuzda"
+        assert turkificate.normalize("5 kg'dan") == "beş kilogramdan"
+        assert turkificate.normalize("%12,5'lik") == "yüzde on iki virgül beşlik"
+
+    def test_currency_minor_units_and_suffixes(self):
+        assert turkificate.normalize("5 TL'lik") == "beş liralık"
+        assert turkificate.normalize("3,99 TL'ye") == "üç lira doksan dokuz kuruşa"
+        assert turkificate.normalize("$1,25") == "bir dolar yirmi beş sent"
+
+    def test_iso_dates_fractions_and_ranges(self):
+        assert turkificate.normalize("2026-01-01'de") == "bir Ocak iki bin yirmi altıda"
+        assert turkificate.normalize("nüfusun 2/3'ü") == "nüfusun iki bölü üçü"
+        assert turkificate.normalize("10-15 yaş") == "on tire on beş yaş"
+
+    def test_contextual_roman_numerals(self):
+        assert turkificate.normalize("IV. Murat") == "dördüncü Murat"
+        assert turkificate.normalize("XXI. yüzyıl") == "yirmi birinci yüzyıl"
+        assert turkificate.normalize("IV vitamin") == "IV vitamin"
+
+    def test_valid_turkish_iban(self):
+        iban = "TR330006100519786457841326"
+        assert turkificate.normalize_ibans(iban) == (
+            "te re üç üç sıfır sıfır sıfır altı bir sıfır sıfır beş bir dokuz yedi "
+            "sekiz altı dört beş yedi sekiz dört bir üç iki altı"
+        )
+        assert turkificate.normalize_ibans("TR330006100519786457841327") == "TR330006100519786457841327"
+
+    def test_detailed_ambiguity_policies(self):
+        normalizer = TurkishNormalizer()
+        eager = normalizer.normalize_detailed("Sürüm 1.234 hazır.")
+        assert eager.text == "Sürüm bin iki yüz otuz dört hazır."
+        assert not eager.complete and eager.issues[0].start == 6
+
+        preserved = normalizer.normalize_detailed(
+            "Sürüm 1.234 hazır.", ambiguity_policy="preserve"
+        )
+        assert preserved.text == "Sürüm 1.234 hazır."
+        assert not preserved.complete
+
+        with pytest.raises(turkificate.NormalizationAmbiguityError):
+            normalizer.normalize_detailed("Sürüm 1.234 hazır.", ambiguity_policy="reject")
+        with pytest.raises(ValueError):
+            normalizer.normalize_detailed("1", ambiguity_policy="unknown")

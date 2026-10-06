@@ -4,7 +4,7 @@ Quick start
 -----------
 >>> import turkificate
 >>> turkificate.turkificate("Dr. Ahmet 15.03.2024'te %25 indirimle 1.250 TL ödedi.")
-"doktor Ahmet on beş Mart iki bin yirmi dört'te yüzde yirmi beş indirimle bin iki yüz elli lira ödedi."
+"doktor Ahmet on beş Mart iki bin yirmi dörtte yüzde yirmi beş indirimle bin iki yüz elli lira ödedi."
 
 ``turkificate()`` is the main function; ``normalize()`` is a kept alias.
 
@@ -33,8 +33,9 @@ from .numbers import (
     read_number,
 )
 from .pipeline import ALL, DEFAULT_ORDER, Pipeline, TurkishNormalizer
+from .results import NormalizationAmbiguityError, NormalizationIssue, NormalizationResult
 
-__version__ = "0.1.5"
+__version__ = "0.2.0"
 
 __all__ = [
     # Main interface
@@ -44,6 +45,9 @@ __all__ = [
     "normalize",
     "DEFAULT_ORDER",
     "ALL",
+    "NormalizationResult",
+    "NormalizationIssue",
+    "NormalizationAmbiguityError",
     # Number engine
     "integer_to_words",
     "integer_to_ordinal",
@@ -61,12 +65,16 @@ __all__ = [
     "normalize_turkish_ids",
     "normalize_companies",
     "normalize_technology_terms",
+    "normalize_ibans",
     "normalize_numbers",
     "normalize_dates",
     "normalize_times",
     "normalize_percent",
     "normalize_currency",
+    "normalize_fractions",
+    "normalize_ranges",
     "normalize_ordinals",
+    "normalize_roman_numerals",
     "normalize_units",
     "normalize_abbreviations",
     "normalize_symbols",
@@ -106,12 +114,16 @@ normalize_phones = _make_single("phones")
 normalize_turkish_ids = _make_single("turkish_ids")
 normalize_companies = _make_single("companies")
 normalize_technology_terms = _make_single("technology_terms")
+normalize_ibans = _make_single("ibans")
 normalize_numbers = _make_single("numbers")
 normalize_dates = _make_single("dates")
 normalize_times = _make_single("times")
 normalize_percent = _make_single("percent")
 normalize_currency = _make_single("currency")
+normalize_fractions = _make_single("fractions")
+normalize_ranges = _make_single("ranges")
 normalize_ordinals = _make_single("ordinals")
+normalize_roman_numerals = _make_single("roman_numerals")
 normalize_units = _make_single("units")
 normalize_abbreviations = _make_single("abbreviations")
 normalize_symbols = _make_single("symbols")
