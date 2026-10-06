@@ -115,6 +115,25 @@ tn = TurkishNormalizer(options={
 })
 ```
 
+## Custom pronunciation dictionary
+
+Pass a per-instance dictionary to override bundled company and technology
+pronunciations, or to add application-specific terms. Entries match complete
+words or phrases case-insensitively and run before bundled lexical normalizers.
+
+```python
+from turkificate import TurkishNormalizer
+
+tn = TurkishNormalizer(lexicon={
+    "OpenAI": "open ey ay",
+    "Acme Labs": "ekmi lebs",
+})
+tn.normalize("OpenAI ve Acme Labs")
+# "open ey ay ve ekmi lebs"
+```
+
+For a one-off call, use `turkificate.normalize_with_lexicon(text, lexicon)`.
+
 ## Per-concept helpers
 
 ```python
@@ -208,6 +227,8 @@ designed to gain further ambiguity checks without changing `normalize()`.
   is not a full Turkish morphological analyser.
 - Roman numerals are deliberately normalized only in contextual ordinal forms
   such as `IV. Murat`; bare `IV` remains unchanged.
+- Dates are validated against the Gregorian calendar; invalid values such as
+  `31.04.2026` and `29.02.2025` remain unchanged.
 
 ## Development
 

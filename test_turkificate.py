@@ -40,6 +40,12 @@ class TestNormalizers:
     def test_invalid_date_untouched(self):
         assert turkificate.normalize_dates("32.03.2024") == "32.03.2024"
 
+    def test_calendar_invalid_dates_are_untouched_in_full_pipeline(self):
+        assert turkificate.normalize("31.04.2026") == "31.04.2026"
+        assert turkificate.normalize("29.02.2025") == "29.02.2025"
+        assert turkificate.normalize("2025-02-29") == "2025-02-29"
+        assert turkificate.normalize("29.02.2024") == "yirmi dokuz Şubat iki bin yirmi dört"
+
     def test_percent_before_number(self):
         assert turkificate.normalize_percent("%50") == "yüzde elli"
 
@@ -125,6 +131,17 @@ class TestNormalizers:
     def test_technology_terms_do_not_match_inside_words(self):
         assert turkificate.normalize_technology_terms("PLAIN") == "PLAIN"
 
+    def test_custom_lexicon_overrides_bundled_pronunciations(self):
+        normalizer = TurkishNormalizer(lexicon={"OpenAI": "open ey ay", "Acme Labs": "ekmi lebs"})
+        assert normalizer.normalize("OpenAI ve Acme Labs") == "open ey ay ve ekmi lebs"
+        assert turkificate.normalize_with_lexicon("OpenAI", {"OpenAI": "open ey ay"}) == "open ey ay"
+
+    def test_custom_lexicon_is_selected_with_explicit_features(self):
+        normalizer = TurkishNormalizer(features=["numbers"], lexicon={"kod": "şifre"})
+        assert normalizer.normalize("kod 2") == "şifre iki"
+        with pytest.raises(TypeError):
+            TurkishNormalizer(lexicon=[("kod", "şifre")])
+
 
 class TestPipeline:
     def test_feature_selection_isolation(self):
@@ -193,6 +210,20 @@ class TestAdvancedNormalization:
         assert turkificate.normalize("09:30'da") == "dokuz otuzda"
         assert turkificate.normalize("5 kg'dan") == "beş kilogramdan"
         assert turkificate.normalize("%12,5'lik") == "yüzde on iki virgül beşlik"
+
+    def test_number_suffix_regression_matrix(self):
+        normalizer = TurkishNormalizer(features=["numbers"])
+        expected = {
+            "4'ü": "dördü",
+            "4'e": "dörde",
+            "4'te": "dörtte",
+            "4'ten": "dörtten",
+            "4'ün": "dördün",
+            "3'ü": "üçü",
+            "5'lik": "beşlik",
+        }
+        for source, spoken in expected.items():
+            assert normalizer.normalize(source) == spoken
 
     def test_currency_minor_units_and_suffixes(self):
         assert turkificate.normalize("5 TL'lik") == "beş liralık"

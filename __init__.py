@@ -43,6 +43,7 @@ __all__ = [
     "Pipeline",
     "turkificate",
     "normalize",
+    "normalize_with_lexicon",
     "DEFAULT_ORDER",
     "ALL",
     "NormalizationResult",
@@ -91,6 +92,11 @@ def turkificate(text: str) -> str:
 
 # Kept alias for readability / discoverability.
 normalize = turkificate
+
+
+def normalize_with_lexicon(text: str, lexicon: dict[str, str]) -> str:
+    """Normalize text with caller-owned source-to-pronunciation overrides."""
+    return TurkishNormalizer(lexicon=lexicon).normalize(text)
 
 
 def _make_single(feature):

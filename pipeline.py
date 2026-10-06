@@ -21,6 +21,7 @@ ALL = "all"
 DEFAULT_ORDER = [
     "emails",
     "urls",
+    "custom_lexicon",
     "phones",
     "turkish_ids",
     "companies",
@@ -72,6 +73,8 @@ class TurkishNormalizer:
         - a single concept name as a string
     order : a custom execution order (only selected concepts are considered).
     options : per-concept options, e.g. ``{"times": {"prefix_hour": True}}``.
+    lexicon : optional source-to-pronunciation mapping that overrides bundled
+        lexical concepts for this normalizer instance.
 
     Examples
     --------
@@ -83,11 +86,17 @@ class TurkishNormalizer:
     'yüzde elli'
     """
 
-    def __init__(self, features=None, *, order=None, options=None):
+    def __init__(self, features=None, *, order=None, options=None, lexicon=None):
         registry = get_registry()
-        options = options or {}
+        options = dict(options or {})
+        if lexicon is not None:
+            if "custom_lexicon" in options:
+                raise ValueError("Pass a custom lexicon through either lexicon or options, not both")
+            options["custom_lexicon"] = {"entries": lexicon}
 
         selected = self._resolve_features(features, registry)
+        if lexicon is not None and "custom_lexicon" in registry and "custom_lexicon" not in selected:
+            selected.append("custom_lexicon")
 
         unknown = [f for f in selected if f not in registry]
         if unknown:

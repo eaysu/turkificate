@@ -7,6 +7,8 @@ Email/URL normalizers run first so the symbol normalizer never sees raw @ or dot
 """
 
 import re
+from collections.abc import Mapping
+from datetime import date
 
 from .base import Normalizer, register
 from .data import (
@@ -81,6 +83,39 @@ class UrlNormalizer(Normalizer):
                    .replace('_', ' alt çizgi '))
             return re.sub(r' +', ' ', url).strip() + trail
         return self._re.sub(repl, text)
+
+
+@register
+class CustomLexiconNormalizer(Normalizer):
+    """Apply caller-owned pronunciations before built-in lexical concepts.
+
+    Entries are matched case-insensitively as complete words or phrases. They
+    intentionally take precedence over the bundled company and technology
+    dictionaries, so an application can correct a brand pronunciation without
+    forking the package.
+    """
+
+    name = "custom_lexicon"
+
+    def configure(self, entries=None, **options):
+        if entries is None:
+            entries = {}
+        if not isinstance(entries, Mapping):
+            raise TypeError("custom_lexicon entries must be a mapping of source to spoken text")
+        if not all(isinstance(source, str) and source and isinstance(spoken, str)
+                   for source, spoken in entries.items()):
+            raise ValueError("custom_lexicon entries must contain non-empty string keys and string values")
+        self._entries = {source.casefold(): spoken for source, spoken in entries.items()}
+        keys = sorted(entries, key=len, reverse=True)
+        self._re = (
+            re.compile(r"(?<!\w)(" + "|".join(re.escape(key) for key in keys) + r")(?!\w)", re.IGNORECASE)
+            if keys else None
+        )
+
+    def apply(self, text):
+        if self._re is None:
+            return text
+        return self._re.sub(lambda m: self._entries[m.group(1).casefold()], text)
 
 
 def _digits_only(value):
@@ -243,7 +278,17 @@ class NumberNormalizer(Normalizer):
         )
 
     def apply(self, text):
+        # A date-shaped value that the date normalizer rejected (for example
+        # 31.04.2026) is one unresolved expression, not three bare numbers.
+        protected_dates = [
+            match.span() for match in re.finditer(
+                r"(?<!\d)(?:\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{4}-\d{2}-\d{2})(?!\d)", text
+            )
+        ]
+
         def repl(m):
+            if any(start <= m.start() < end for start, end in protected_dates):
+                return m.group(0)
             return inflect_tail(read_number(m.group(1) + m.group(2)), m.group(3))
         return self._re.sub(repl, text)
 
@@ -280,10 +325,21 @@ class RangeNormalizer(Normalizer):
         )
 
     def apply(self, text):
-        return self._re.sub(
-            lambda m: inflect_tail(
+        protected_dates = [
+            match.span() for match in re.finditer(
+                r"(?<!\d)(?:\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{4}-\d{2}-\d{2})(?!\d)", text
+            )
+        ]
+
+        def repl(m):
+            if any(start < m.end() and m.start() < end for start, end in protected_dates):
+                return m.group(0)
+            return inflect_tail(
                 f"{read_number(m.group(1))} tire {read_number(m.group(2))}", m.group(3)
-            ),
+            )
+
+        return self._re.sub(
+            repl,
             text,
         )
 
@@ -368,14 +424,18 @@ class DateNormalizer(Normalizer):
     def apply(self, text):
         def repl(m):
             day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            if not (1 <= day <= 31 and 1 <= month <= 12):
+            try:
+                date(year, month, day)
+            except ValueError:
                 return m.group(0)        # invalid date: leave untouched
             spoken = f"{integer_to_words(day)} {MONTHS[month]} {integer_to_words(year)}"
             return inflect_tail(spoken, m.group(4))
 
         def iso_repl(m):
             year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            if not (1 <= day <= 31 and 1 <= month <= 12):
+            try:
+                date(year, month, day)
+            except ValueError:
                 return m.group(0)
             spoken = f"{integer_to_words(day)} {MONTHS[month]} {integer_to_words(year)}"
             return inflect_tail(spoken, m.group(4))
